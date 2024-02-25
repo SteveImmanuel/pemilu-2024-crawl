@@ -2,19 +2,19 @@ import asyncio
 import argparse
 import pickle
 import os
+import aiohttp
 from typing import List
 from playwright.async_api import async_playwright, Page
-import aiohttp
 
 async def worker(worker_id, page: Page, queue: asyncio.Queue, ref_queue:List, BASE_URL: str):
     while True:
         link, path = await queue.get()
         ref_queue.pop()
-        print(worker_id, 'processing', BASE_URL + link)
+        print(worker_id, '[PROCESSING]', BASE_URL + link)
 
         await page.goto(BASE_URL + link, wait_until='networkidle')
-        print(worker_id, 'loaded', BASE_URL + link)
-        
+        print(worker_id, '[LOADED]', BASE_URL + link)
+
         if 'tps' in path.lower() or 'pos' in path.lower():
             os.makedirs(path, exist_ok=True)
 
@@ -56,7 +56,7 @@ async def worker(worker_id, page: Page, queue: asyncio.Queue, ref_queue:List, BA
         queue.task_done()
         with open('.queue.cache', 'wb') as file:
             pickle.dump(ref_queue, file)
-        print(worker_id, 'done')
+        print(worker_id, '[DONE]', BASE_URL + link)
 
 
 async def main(base_url:str, start_url: str, output: str, timeout: int, workers: int, headless:bool, resume:bool):
@@ -80,7 +80,6 @@ async def main(base_url:str, start_url: str, output: str, timeout: int, workers:
 
         tasks = [asyncio.create_task(worker(f'Worker-{i}:', pages[i], queue, ref_queue, base_url)) for i in range(workers)]
         await queue.join()
-        await asyncio.gather(*tasks)
         await browser.close()
 
 if __name__ == '__main__':
