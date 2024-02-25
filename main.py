@@ -2,9 +2,9 @@ import asyncio
 import argparse
 import pickle
 import os
-import requests
 from typing import List
 from playwright.async_api import async_playwright, Page
+import aiohttp
 
 async def worker(worker_id, page: Page, queue: asyncio.Queue, ref_queue:List, BASE_URL: str):
     while True:
@@ -16,6 +16,7 @@ async def worker(worker_id, page: Page, queue: asyncio.Queue, ref_queue:List, BA
         print(worker_id, 'processing', BASE_URL + link)
 
         await page.goto(BASE_URL + link, wait_until='networkidle')
+        print(worker_id, 'loaded', BASE_URL + link)
         
         if 'tps' in path.lower() or 'pos' in path.lower():
             os.makedirs(path, exist_ok=True)
@@ -31,12 +32,13 @@ async def worker(worker_id, page: Page, queue: asyncio.Queue, ref_queue:List, BA
                 for i, image in enumerate(images):
                     img_link = await image.get_attribute('src')
                     ext = img_link.split('.')[-1]
-                    response = requests.get(img_link)
-                    if response.status_code == 200:
-                        with open(os.path.join(path, f'{i}.{ext}'), 'wb') as file:
-                            file.write(response.content)
-                    else:
-                        print('Failed to download image', img_link)
+                    async with aiohttp.ClientSession() as session:
+                        async with session.get(img_link) as response:
+                            if response.status == 200:
+                                with open(os.path.join(path, f'{i}.{ext}'), 'wb') as file:
+                                    file.write(await response.read())
+                            else:
+                                print('Failed to download image', img_link)
             except Exception as e:
                 print('Error on', BASE_URL + link, ', Path:', path)
                 print(e)
