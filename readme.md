@@ -6,6 +6,11 @@ pip install -r requirements.txt
 ```
 
 ## Usage
+Basic:
+```bash
+python main.py
+```
+Advanced:
 ```bash
 python main.py -h
 usage: main.py [-h] [--start-url START_URL] [--output OUTPUT] [--timeout TIMEOUT] [--workers WORKERS] [--headless]
