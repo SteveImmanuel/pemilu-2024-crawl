@@ -13,7 +13,9 @@ python main.py
 ```
 Advanced:
 ```bash
+python main.py -h
 usage: main.py [-h] [--start-url START_URL] [--output OUTPUT] [--timeout TIMEOUT] [--workers WORKERS] [--headless]
+               [--resume]
 
 Indonesia Pemilu 2024 Scraper
 
@@ -25,4 +27,5 @@ options:
   --timeout TIMEOUT     Timeout for each request
   --workers WORKERS     Total concurrent workers
   --headless            Run in headless mode
+  --resume              Resume previous session if available
 ```
