@@ -1,17 +1,28 @@
 import asyncio
 import argparse
+import pickle
 import os
 import requests
+from typing import List
 from playwright.async_api import async_playwright, Page
 
-async def worker(worker_id, page: Page, queue: asyncio.Queue, BASE_URL: str):
+async def worker(worker_id, page: Page, queue: asyncio.Queue, ref_queue:List, BASE_URL: str):
     while True:
+        with open('.queue.cache', 'wb') as file:
+            pickle.dump(ref_queue, file)
+
         link, path = await queue.get()
-        print(worker_id, 'executing', link)
+        ref_queue.pop()
+        print(worker_id, 'processing', BASE_URL + link)
 
         await page.goto(BASE_URL + link, wait_until='networkidle')
         
         if 'tps' in path.lower() or 'pos' in path.lower():
+            os.makedirs(path, exist_ok=True)
+
+            with open(os.path.join(path, 'link.txt'), 'w') as file:
+                file.write(BASE_URL + link)
+
             btn = page.locator('button.btn.btn-dark.float-end', has_text='Form Pindai')
             await btn.click()
             try:
@@ -22,7 +33,6 @@ async def worker(worker_id, page: Page, queue: asyncio.Queue, BASE_URL: str):
                     ext = img_link.split('.')[-1]
                     response = requests.get(img_link)
                     if response.status_code == 200:
-                        os.makedirs(path, exist_ok=True)
                         with open(os.path.join(path, f'{i}.{ext}'), 'wb') as file:
                             file.write(response.content)
                     else:
@@ -42,12 +52,13 @@ async def worker(worker_id, page: Page, queue: asyncio.Queue, BASE_URL: str):
                 next_link = await data.get_attribute('href')
                 next_path = os.path.join(path, text)
                 queue.put_nowait((next_link, next_path))
+                ref_queue.append((next_link, next_path))
 
         queue.task_done()
         print(worker_id, 'done')
 
 
-async def main(base_url:str, start_url: str, output: str, timeout: int, workers: int, headless:bool):
+async def main(base_url:str, start_url: str, output: str, timeout: int, workers: int, headless:bool, resume:bool):
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=headless)
         
@@ -55,11 +66,20 @@ async def main(base_url:str, start_url: str, output: str, timeout: int, workers:
         context.set_default_timeout(timeout)
         pages = [await context.new_page() for _ in range(workers)]
 
-        queue = asyncio.LifoQueue()
-        queue.put_nowait((start_url, output))
-        tasks = [asyncio.create_task(worker(f'Worker-{i}:', pages[i], queue, base_url)) for i in range(workers)]
+        if resume and os.path.exists('.queue.cache'):
+            print('Resuming previous session')
+            with open('.queue.cache', 'rb') as file:
+                ref_queue = pickle.load(file)
+        else:
+            ref_queue = [(start_url, output)]
 
+        queue = asyncio.LifoQueue()
+        for start_url, output in ref_queue:
+            queue.put_nowait((start_url, output))
+
+        tasks = [asyncio.create_task(worker(f'Worker-{i}:', pages[i], queue, ref_queue, base_url)) for i in range(workers)]
         await queue.join()
+        await asyncio.gather(*tasks)
         await browser.close()
 
 if __name__ == '__main__':
@@ -71,7 +91,8 @@ if __name__ == '__main__':
     args.add_argument('--timeout', type=int, help='Timeout for each request', default=3000)
     args.add_argument('--workers', type=int, help='Total concurrent workers', default=15)
     args.add_argument('--headless', action='store_true', help='Run in headless mode')
+    args.add_argument('--resume', action='store_true', help='Resume previous session if available')
     args = args.parse_args()
     
     print(args)
-    asyncio.run(main(BASE_URL, args.start_url, args.output, args.timeout, args.workers, args.headless))
+    asyncio.run(main(BASE_URL, args.start_url, args.output, args.timeout, args.workers, args.headless, args.resume))
