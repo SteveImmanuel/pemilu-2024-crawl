@@ -66,7 +66,7 @@ if __name__ == '__main__':
     BASE_URL = 'https://pemilu2024.kpu.go.id'
 
     args = argparse.ArgumentParser(description='Indonesia Pemilu 2024 Scraper')
-    args.add_argument('--start-url', type=str, help='URL to scrape', default='/pilpres/hitung-suara')
+    args.add_argument('--start-url', type=str, help=f'Starting url. Base is {BASE_URL}', default='/pilpres/hitung-suara')
     args.add_argument('--output', type=str, help='Output directory', default='results')
     args.add_argument('--timeout', type=int, help='Timeout for each request', default=3000)
     args.add_argument('--workers', type=int, help='Total concurrent workers', default=15)
