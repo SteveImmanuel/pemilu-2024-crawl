@@ -8,9 +8,6 @@ import aiohttp
 
 async def worker(worker_id, page: Page, queue: asyncio.Queue, ref_queue:List, BASE_URL: str):
     while True:
-        with open('.queue.cache', 'wb') as file:
-            pickle.dump(ref_queue, file)
-
         link, path = await queue.get()
         ref_queue.pop()
         print(worker_id, 'processing', BASE_URL + link)
@@ -57,6 +54,8 @@ async def worker(worker_id, page: Page, queue: asyncio.Queue, ref_queue:List, BA
                 ref_queue.append((next_link, next_path))
 
         queue.task_done()
+        with open('.queue.cache', 'wb') as file:
+            pickle.dump(ref_queue, file)
         print(worker_id, 'done')
 
 
